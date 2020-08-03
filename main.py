@@ -1,6 +1,8 @@
 import sys
 from socket import *
 import binascii
+import time
+import json
 
 ip = "127.0.0.1"
 ports = [0, 1000]
@@ -123,6 +125,9 @@ def craft_packet(src_ip, src_port, dest_ip, dest_port, scantype):
         packet += tcp_header[i]
     return packet
 
+json_file = open("ports.json", "r")
+port_servieces = json.load(json_file)
+
 #Start of program
 for i in range(0, len(sys.argv)):
     arg = sys.argv[i]
@@ -143,7 +148,9 @@ for i in range(0, len(sys.argv)):
         model = sys.argv[i+1]
     elif(arg == "-d"):
         delay = int(sys.argv[i+1])
-print("Starting my map ...")
+t1 = time.time()
+localtime = time.asctime(time.localtime(t1))
+print("Starting my map at", localtime)
 print("Scanning " + str(ip) + " , ports " + str(ports[0]) + " to " + str(ports[1]) )
 
 if(model == "CS"):
@@ -202,32 +209,39 @@ else:
                 no_resp = True
         finally:
             s.close()
+            serv = ""
+            try:
+                serv = port_servieces[str(p)]
+            except:
+                serv = "unknown"
             if (model == "AS"):
                 if(RST):
-                    print(str(p) + "/tcp\tunfiltered")
+                    print(str(p) + "/tcp\tunfiltered\t" + serv)
                 else:
-                    print(str(p) + "/tcp\tfiltered")
+                    print(str(p) + "/tcp\tfiltered\t" + serv)
             elif (model == "SS"):
                 if(SYN_ACK):
-                    print(str(p) + "/tcp\topen")
+                    print(str(p) + "/tcp\topen\t" + serv)
                 elif(RST):
-                    print(str(p) + "/tcp\tclosed")
+                    print(str(p) + "/tcp\tclosed\t" + serv)
                 else:
-                    print(str(p) + "/tcp\tfiltered")
+                    print(str(p) + "/tcp\tfiltered\t" + serv)
             elif (model == "FS"):
                 if(no_resp):
-                    print(str(p) + "/tcp\topen|filtered")
+                    print(str(p) + "/tcp\topen|filtered\t" + serv)
                 elif(RST):
-                    print(str(p) + "/tcp\tclosed")
+                    print(str(p) + "/tcp\tclosed\t" + serv)
                 else:
-                    print(str(p) + "/tcp\tfiltered")
+                    print(str(p) + "/tcp\tfiltered\t" + serv)
             else: #WS
                 if(RST):
                     if(Window_zero):
-                        print(str(p) + "/tcp\tclosed")
+                        print(str(p) + "/tcp\tclosed\t" + serv)
                     else:
-                        print(str(p) + "/tcp\topen")
+                        print(str(p) + "/tcp\topen\t" + serv)
                 else:
-                    print(str(p) + "/tcp\tfiltered")
+                    print(str(p) + "/tcp\tfiltered\t" + serv)
 
+t2 = time.time()
+print(str(ports[1] - ports[0] + 1) + " ports scanned in " + str(int(t2-t1)) +" seconds")
 #End of program
