@@ -142,7 +142,7 @@ for i in range(0, len(sys.argv)):
 #TODO try catch
 print("Starting my map ...")
 print("Scanning " + str(ip) + " , ports " + str(ports[0]) + " to " + str(ports[1]) )
-
+#TODO sleep
 if(model == "CS"):
     is_Any = False
     for p in range(ports[0], ports[1] + 1):
@@ -164,7 +164,6 @@ else:
         s.settimeout(delay)
         no_resp = False
         RST = False
-        ICMP = False
         SYN_ACK = False
         Window_zero = False
         try:
@@ -173,15 +172,13 @@ else:
             protoc = d[18:20]
             if(protoc == b'06'): #TCP
                 flagss = d[66:68]
-                if(flagss == b'14' or flagss == b'10'): #RST Flag
+                if(flagss == b'14' or flagss == b'10' or flagss == b'02' or flagss == b'01'): #RST Flag
                     RST = True
                     myi = int.from_bytes(data[34:36],'big')
                     if(myi == 9700 or myi == 0):
                         Window_zero = True
                 elif(flagss == b'12'):
                     SYN_ACK = True
-            elif(protoc == b'01'): #ICMP
-                ICMP = True
         except:
             s.sendto(packet, (ip, p))
             s.settimeout(delay + 1)
@@ -191,15 +188,13 @@ else:
                 protoc = d[18:20]
                 if(protoc == b'06'): #TCP
                     flagss = d[66:68]
-                    if(flagss == b'14' or flagss == b'10'): #RST Flag
+                    if(flagss == b'14' or flagss == b'10' or flagss == b'02' or flagss == b'01'): #RST Flag
                         RST = True
                         myi = int.from_bytes(data[34:36],'big')
                         if(myi == 9700 or myi == 0):
                             Window_zero = True
                     elif(flagss == b'12'):
                         SYN_ACK = True
-                elif(protoc == b'01'): #ICMP
-                    ICMP = True
             except:
                 no_resp = True
         finally:
@@ -210,11 +205,26 @@ else:
                 else:
                     print(str(p) + "/tcp\tfiltered")
             elif (model == "SS"):
-                pass
+                if(SYN_ACK):
+                    print(str(p) + "/tcp\topen")
+                elif(RST):
+                    print(str(p) + "/tcp\tclosed")
+                else:
+                    print(str(p) + "/tcp\tfiltered")
             elif (model == "FS"):
-                pass
+                if(no_resp):
+                    print(str(p) + "/tcp\topen|filtered")
+                elif(RST):
+                    print(str(p) + "/tcp\tclosed")
+                else:
+                    print(str(p) + "/tcp\tfiltered")
             else: #WS
-                pass
-
+                if(RST):
+                    if(Window_zero):
+                        print(str(p) + "/tcp\tclosed")
+                    else:
+                        print(str(p) + "/tcp\topen")
+                else:
+                    print(str(p) + "/tcp\tfiltered")
 
 #End of program
