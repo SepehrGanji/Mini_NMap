@@ -129,7 +129,11 @@ for i in range(0, len(sys.argv)):
     if(arg[-3:] == ".py"):
         continue
     if(arg == "-t"):
-        ip = gethostbyname(sys.argv[i+1])
+        try:
+            ip = gethostbyname(sys.argv[i+1])
+        except:
+            print("Can't find target host ip")
+            exit(-1)
     elif(arg == "-T"):
         ip = sys.argv[i+1]
     elif(arg == "-p"):
@@ -139,10 +143,9 @@ for i in range(0, len(sys.argv)):
         model = sys.argv[i+1]
     elif(arg == "-d"):
         delay = int(sys.argv[i+1])
-#TODO try catch
 print("Starting my map ...")
 print("Scanning " + str(ip) + " , ports " + str(ports[0]) + " to " + str(ports[1]) )
-#TODO sleep
+
 if(model == "CS"):
     is_Any = False
     for p in range(ports[0], ports[1] + 1):
