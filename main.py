@@ -73,10 +73,13 @@ def get_ip():
 def craft_packet(src_ip, src_port, dest_ip, dest_port, scantype):
     hex_src_ip = get_hex_ip(src_ip)
     hex_dest_ip = get_hex_ip(dest_ip)
+    ii = 97 * src_port +  33 + dest_port * 71 + 3
+    ii = ii % 65535
+    idn = int.to_bytes(ii, 2, 'big')
     ip_header_vals = [
         b'\x45\x00', #Version = 4(IPv4), IHL, TOS
         b'\x00\x28', #TotalLength = 40bytes
-        b'\x83\xb1', #Identification : 33713 (my student num is 97-33713)!!!
+        idn, #Identification
         b'\x00\x00', #Flags and Fragment Offset
         b'\x40\x06', #TTL = 64, Protocol = 6(tcp)
         b'\x00\x00', #CheckSum (0 for now)
@@ -182,7 +185,7 @@ else:
             protoc = d[18:20]
             if(protoc == b'06'): #TCP
                 flagss = d[66:68]
-                if(flagss == b'14' or flagss == b'10' or flagss == b'02' or flagss == b'01'): #RST Flag
+                if(flagss == b'14' or flagss == b'02' or flagss == b'01'): #RST Flag
                     RST = True
                     myi = int.from_bytes(data[34:36],'big')
                     if(myi == 9700 or myi == 0):
@@ -198,7 +201,7 @@ else:
                 protoc = d[18:20]
                 if(protoc == b'06'): #TCP
                     flagss = d[66:68]
-                    if(flagss == b'14' or flagss == b'10' or flagss == b'02' or flagss == b'01'): #RST Flag
+                    if(flagss == b'14' or flagss == b'02' or flagss == b'01'): #RST Flag
                         RST = True
                         myi = int.from_bytes(data[34:36],'big')
                         if(myi == 9700 or myi == 0):
@@ -222,6 +225,7 @@ else:
             elif (model == "SS"):
                 if(SYN_ACK):
                     print(str(p) + "/tcp\topen\t" + serv)
+                    time.sleep(delay)
                 elif(RST):
                     print(str(p) + "/tcp\tclosed\t" + serv)
                 else:
