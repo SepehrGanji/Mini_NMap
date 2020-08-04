@@ -1,8 +1,11 @@
-import sys
 from socket import *
+from struct import *
+
+import sys
 import binascii
 import time
 import json
+import random
 
 ip = "127.0.0.1"
 ports = [0, 1000]
@@ -61,7 +64,6 @@ def calc_checksum(vals):
 def get_ip():
     s = socket(AF_INET, SOCK_DGRAM)
     try:
-        # doesn't even have to be reachable
         s.connect(('10.255.255.255', 1))
         IP = s.getsockname()[0]
     except Exception:
@@ -73,8 +75,7 @@ def get_ip():
 def craft_packet(src_ip, src_port, dest_ip, dest_port, scantype):
     hex_src_ip = get_hex_ip(src_ip)
     hex_dest_ip = get_hex_ip(dest_ip)
-    ii = 97 * src_port +  33 + dest_port * 71 + 3
-    ii = ii % 65535
+    ii = (9733713 * src_port) % 65536
     idn = int.to_bytes(ii, 2, 'big')
     ip_header_vals = [
         b'\x45\x00', #Version = 4(IPv4), IHL, TOS
@@ -89,6 +90,7 @@ def craft_packet(src_ip, src_port, dest_ip, dest_port, scantype):
         hex_dest_ip[1]
     ]
     ip_header_vals[5] = calc_checksum(ip_header_vals)
+
     n = 20480
     if(scantype == "AS" or scantype == "WS"):
         n += 16
@@ -97,8 +99,7 @@ def craft_packet(src_ip, src_port, dest_ip, dest_port, scantype):
     elif(scantype == "FS"):
         n += 1
     else:
-        print("Unknown scan type!!!")
-        exit(-1)
+        n += 41
     offlag = int.to_bytes(n, 2, 'big')
     tcp_pseudo_header =[
         b'\x00\x06', #Protocol
@@ -111,10 +112,10 @@ def craft_packet(src_ip, src_port, dest_ip, dest_port, scantype):
         int.to_bytes(dest_port, 2, 'big'), #Destination port
         b'\x00\x00', #Seq num
         b'\x00\x00',
-        b'\x00\x00', #Ack num
-        b'\x00\x00',
+        b'\x09\x73', #Ack num
+        b'\x37\x13',
         offlag, #Data offset and flags
-        b'\x25\xe4', #Window size = 9700
+        b'\x05\x77', #Window size = 1399
         b'\x00\x00', #Checksum (0 for now)
         b'\x00\x00' #URG pointer
     ]
@@ -127,6 +128,10 @@ def craft_packet(src_ip, src_port, dest_ip, dest_port, scantype):
     for i in range(0, 10):
         packet += tcp_header[i]
     return packet
+
+def tcp_flags(data):
+    arr = unpack('!HHLLBBHHH', data)
+    return [arr[0], arr[1], arr[6] == 0, arr[5]]
 
 json_file = open("ports.json", "r")
 port_servieces = json.load(json_file)
@@ -151,8 +156,10 @@ for i in range(0, len(sys.argv)):
         model = sys.argv[i+1]
     elif(arg == "-d"):
         delay = int(sys.argv[i+1])
+
 t1 = time.time()
 localtime = time.asctime(time.localtime(t1))
+
 print("Starting my map at", localtime)
 print("Scanning " + str(ip) + " , ports " + str(ports[0]) + " to " + str(ports[1]) )
 
@@ -167,84 +174,83 @@ if(model == "CS"):
     if(is_Any == False):
         print("\tAll ports in the target are closed!")
     print("End of scan")
-else:
+else: #We Should Manualy Craft Packets
     print("PORT\tSTATE\tSERVIECE")
+    myip = get_ip()
+    random.seed(time.time())
     for p in range(ports[0], ports[1] + 1):
-        packet = craft_packet(get_ip(), 5000, ip, p, model)
+        po = random.randrange(1000, 65000)
+        packet = craft_packet(myip, po, ip, p, model)
         s = socket(AF_INET, SOCK_RAW, IPPROTO_TCP)
         s.setsockopt(IPPROTO_IP, IP_HDRINCL, 1)
         s.sendto(packet, (ip, p))
+        i_said_so = True
+        flgs = []
         s.settimeout(delay)
-        no_resp = False
-        RST = False
-        SYN_ACK = False
-        Window_zero = False
-        try:
-            data = s.recv(1024)
-            d = binascii.hexlify(data)
-            protoc = d[18:20]
-            if(protoc == b'06'): #TCP
-                flagss = d[66:68]
-                if(flagss == b'14' or flagss == b'02' or flagss == b'01'): #RST Flag
-                    RST = True
-                    myi = int.from_bytes(data[34:36],'big')
-                    if(myi == 9700 or myi == 0):
-                        Window_zero = True
-                elif(flagss == b'12'):
-                    SYN_ACK = True
-        except:
-            s.sendto(packet, (ip, p))
-            s.settimeout(delay + 1)
+        NO_RESP = False
+        while(i_said_so):
             try:
                 data = s.recv(1024)
-                d = binascii.hexlify(data)
-                protoc = d[18:20]
-                if(protoc == b'06'): #TCP
-                    flagss = d[66:68]
-                    if(flagss == b'14' or flagss == b'02' or flagss == b'01'): #RST Flag
-                        RST = True
-                        myi = int.from_bytes(data[34:36],'big')
-                        if(myi == 9700 or myi == 0):
-                            Window_zero = True
-                    elif(flagss == b'12'):
-                        SYN_ACK = True
             except:
-                no_resp = True
-        finally:
-            s.close()
-            serv = ""
-            try:
-                serv = port_servieces[str(p)]
-            except:
-                serv = "unknown"
-            if (model == "AS"):
-                if(RST):
-                    print(str(p) + "/tcp\tunfiltered\t" + serv)
+                s.sendto(packet, (ip, p))
+                s.settimeout(delay + 1)
+                try:
+                    data = s.recv(1024)
+                except:
+                    NO_RESP = True
+                    i_said_so = False
+            finally:
+                if(NO_RESP == False):
+                    flgs = tcp_flags(data[20:40])
+                    if(flgs[0] == p and flgs[1] == po):
+                        i_said_so = False
+                        s.close()
+        ACK_flag = 0
+        RST_flag = 0
+        SYN_flag = 0
+        ZERO_Window = False
+        if(NO_RESP == False):
+            flg_num = flgs[-1]
+            ZERO_Window = flgs[2]
+            ACK_flag = (flg_num & 16) >> 4
+            RST_flag = (flg_num & 4) >> 2
+            SYN_flag = (flg_num & 2) >> 1
+        serv = ""
+        try:
+            serv = port_servieces[str(p)]
+        except:
+            serv = "unknown"
+        string = str(p) + "/tcp\t"
+        port_state = ""
+        if(model == "AS"):
+            if(RST_flag):
+                port_state = "unfiltered"
+            else:
+                port_state = "filtered"
+        elif(model == "SS"):
+            if(SYN_flag and ACK_flag):
+                port_state = "open"
+            elif(RST_flag):
+                port_state = "closed"
+            else:
+                port_state = "filtered"
+        elif(model == "WS"):
+            if(RST_flag):
+                if(ZERO_Window):
+                    port_state = "closed"
                 else:
-                    print(str(p) + "/tcp\tfiltered\t" + serv)
-            elif (model == "SS"):
-                if(SYN_ACK):
-                    print(str(p) + "/tcp\topen\t" + serv)
-                    time.sleep(delay)
-                elif(RST):
-                    print(str(p) + "/tcp\tclosed\t" + serv)
-                else:
-                    print(str(p) + "/tcp\tfiltered\t" + serv)
-            elif (model == "FS"):
-                if(no_resp):
-                    print(str(p) + "/tcp\topen|filtered\t" + serv)
-                elif(RST):
-                    print(str(p) + "/tcp\tclosed\t" + serv)
-                else:
-                    print(str(p) + "/tcp\tfiltered\t" + serv)
-            else: #WS
-                if(RST):
-                    if(Window_zero):
-                        print(str(p) + "/tcp\tclosed\t" + serv)
-                    else:
-                        print(str(p) + "/tcp\topen\t" + serv)
-                else:
-                    print(str(p) + "/tcp\tfiltered\t" + serv)
+                    port_state = "open"
+            else:
+                port_state = "filtered"
+        else: #FS or Xmas
+            if(NO_RESP):
+                port_state = "open|filtered"
+            elif(RST_flag):
+                port_state = "closed"
+            else:
+                port_state = "filtered"
+        string = string + port_state + " " + serv
+        print(string)
 
 t2 = time.time()
 print(str(ports[1] - ports[0] + 1) + " ports scanned in " + str(int(t2-t1)) +" seconds")
