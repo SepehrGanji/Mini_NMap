@@ -192,13 +192,8 @@ else: #We Should Manualy Craft Packets
             try:
                 data = s.recv(1024)
             except:
-                s.sendto(packet, (ip, p))
-                s.settimeout(delay + 1)
-                try:
-                    data = s.recv(1024)
-                except:
-                    NO_RESP = True
-                    i_said_so = False
+                NO_RESP = True
+                i_said_so = False
             finally:
                 if(NO_RESP == False):
                     flgs = tcp_flags(data[20:40])
