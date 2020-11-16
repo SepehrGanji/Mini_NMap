@@ -1,4 +1,4 @@
-A simple port scanner (like nmap) app. I did this project for my Network course and it was aswome!
+A simple port scanner (like nmap) app. I did this project for my Network course and it was aswome!\n
 Flgs:
 	-t : Site address (FQDN)
 		example : iut.ac.ir
